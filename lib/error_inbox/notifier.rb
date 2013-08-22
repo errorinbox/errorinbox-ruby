@@ -8,7 +8,9 @@ module ErrorInbox
     end
 
     def save(ex)
-      raise MissingCredentialsError unless configuration.username && configuration.password
+      unless ErrorInbox.configuration.username && ErrorInbox.configuration.password
+        raise MissingCredentialsError
+      end
 
       uri = URI("http://oops.errorinbox.com/")
       req = Net::HTTP::Post.new(uri.path)
