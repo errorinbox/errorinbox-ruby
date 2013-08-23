@@ -4,7 +4,7 @@ require "json"
 module ErrorInbox
   class Notifier
     def initialize(options)
-      @options = options
+      @options = options.dup
     end
 
     def save(ex)
@@ -39,34 +39,31 @@ module ErrorInbox
         :message => ex.message,
         :backtrace => ex.backtrace.join("\n"),
         :environmentName => ENV["RAILS_ENV"] || ENV["RACK_ENV"] || "development",
+        :environment => {},
         :occurredAt => Time.now.xmlschema
       }
 
-      if rack_env
+      rack_env = @options.delete(:rack_env)
+      if rack_env.respond_to?(:each)
         require "rack"
         body[:request] = { :url => ::Rack::Request.new(rack_env).url }
 
-        body[:environment] = {}
         rack_env.each do |key, value|
           body[:environment][key] = value.to_s
         end
 
-        if rack_session
+        if rack_session = rack_env["rack.session"]
           rack_session.each do |key, value|
             body[:session][key] = value.to_s
-          end
+          end if rack_session.respond_to?(:each)
         end
       end
 
+      @options.each do |key, value|
+        body[:environment][key] = value
+      end
+
       JSON.dump(body)
-    end
-
-    def rack_env
-      @rack_env ||= @options[:rack_env] if @options[:rack_env].respond_to?(:each)
-    end
-
-    def rack_session
-      @rack_session ||= rack_env["rack.session"] if rack_env["rack.session"].respond_to?(:each)
     end
   end
 end
