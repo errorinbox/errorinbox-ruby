@@ -38,7 +38,7 @@ module ErrorInbox
         :type => ex.class.name,
         :message => ex.message,
         :backtrace => ex.backtrace.join("\n"),
-        :environmentName => ENV["RAILS_ENV"] || ENV["RACK_ENV"],
+        :environmentName => ENV["RAILS_ENV"] || ENV["RACK_ENV"] || "development",
         :occurredAt => Time.now.xmlschema
       }
 
