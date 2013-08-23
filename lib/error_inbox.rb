@@ -13,7 +13,9 @@ module ErrorInbox
 
   def self.configuration
     @configuration ||= Configuration.new
-    yield @configuration if block_given?
-    @configuration
+  end
+
+  def self.configure
+    yield configuration if block_given?
   end
 end
