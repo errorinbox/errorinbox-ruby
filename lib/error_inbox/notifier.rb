@@ -60,6 +60,7 @@ module ErrorInbox
       end
 
       @options.each do |key, value|
+        value = value.to_s unless value.is_a?(Hash) || value.is_a?(Array)
         body[:environment][key] = value
       end
 
