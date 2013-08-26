@@ -70,7 +70,7 @@ module ErrorInbox
       end
 
       @options.each do |key, value|
-        value = value.to_s unless value.is_a?(Hash) || value.is_a?(Array)
+        value = value.to_s unless [Array, Hash].include?(value.class)
         body[:environment][key] = value
       end
 
