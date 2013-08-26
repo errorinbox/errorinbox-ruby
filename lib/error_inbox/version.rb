@@ -1,3 +1,3 @@
 module ErrorInbox
-  VERSION = "0.0.4a"
+  VERSION = "0.0.5a"
 end
