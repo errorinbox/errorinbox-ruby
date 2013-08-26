@@ -81,7 +81,7 @@ module ErrorInbox
       uri = URI("http://oops.errorinbox.com/")
       http = Net::HTTP.new(uri.host, uri.port)
       http.read_timeout = 5
-      http.open_timeout = 2
+      http.open_timeout = 4
 
       request = Net::HTTP::Post.new(uri.request_uri)
       request["Content-Type"] = "application/json"
