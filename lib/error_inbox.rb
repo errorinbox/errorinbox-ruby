@@ -3,9 +3,6 @@ require "error_inbox/notifier"
 require "error_inbox/configuration"
 
 module ErrorInbox
-  class MissingCredentialsError < StandardError; end
-  class InvalidCredentialsError < StandardError; end
-
   def self.notify(ex, env)
     notifier = Notifier.new(env)
     notifier.save(ex)
