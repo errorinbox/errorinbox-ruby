@@ -10,19 +10,25 @@ describe ErrorInbox::Notifier do
   end
 
   it "raises an error if credentials are missing" do
-    ErrorInbox.stub(:configuration => double("configuration", :username => nil, :password => nil))
+    ErrorInbox.stub(:configuration => double("configuration", :username => nil, :password => nil, :logger => logger = double("logger")))
+    logger.
+      should_receive(:error).
+      with("Missing credentials configuration")
 
     notifier = described_class.new(:rack_env => { :foo => "bar" })
-    expect { notifier.save(ex) }.to raise_error(ErrorInbox::MissingCredentialsError)
+    expect(notifier.save(ex)).to eq({})
   end
 
   it "raises an error if credentials are invalid" do
-    ErrorInbox.stub(:configuration => double("configuration", :username => "foo", :password => "bar"))
+    ErrorInbox.stub(:configuration => double("configuration", :username => "foo", :password => "bar", :logger => logger = double("logger")))
+    logger.
+      should_receive(:error).
+      with("Net::HTTPForbidden")
 
     stub_forbidden_request
 
     notifier = described_class.new(:rack_env => { :foo => "bar" })
-    expect { notifier.save(ex) }.to raise_error(ErrorInbox::InvalidCredentialsError)
+    expect(notifier.save(ex)).to eq({})
   end
 
   it "sends rack exception" do

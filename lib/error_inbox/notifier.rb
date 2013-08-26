@@ -3,31 +3,41 @@ require "json"
 
 module ErrorInbox
   class Notifier
+    HTTP_ERRORS = [
+      Timeout::Error,
+      Errno::EINVAL,
+      Errno::ECONNRESET,
+      EOFError,
+      Net::HTTPBadResponse,
+      Net::HTTPHeaderSyntaxError,
+      Net::ProtocolError,
+      Errno::ECONNREFUSED,
+      OpenSSL::SSL::SSLError
+    ].freeze
+
     def initialize(options)
       @options = options.dup
     end
 
     def save(ex)
-      unless ErrorInbox.configuration.username && ErrorInbox.configuration.password
-        raise MissingCredentialsError
-      end
+      if ErrorInbox.configuration.username && ErrorInbox.configuration.password
+        response = begin
+          http_request(prepare_body(ex))
+        rescue *HTTP_ERRORS => ex
+          ErrorInbox.configuration.logger.error("#{ex.class.name}: #{ex.message}")
+          nil
+        end
 
-      uri = URI("http://oops.errorinbox.com/")
-      req = Net::HTTP::Post.new(uri.path)
-      req.basic_auth(ErrorInbox.configuration.username, ErrorInbox.configuration.password)
-      req["Content-Type"] = "application/json"
-      req.body = prepare_body(ex)
-      res = Net::HTTP.start(uri.host, uri.port) do |http|
-        http.request(req)
-      end
-
-      case res
-      when Net::HTTPCreated
-        JSON.load(res.body)["id"]
-      when Net::HTTPForbidden
-        raise InvalidCredentialsError
+        case response
+        when Net::HTTPCreated
+          JSON.load(response.body)["id"]
+        else
+          ErrorInbox.configuration.logger.error(response.class.name)
+          {}
+        end
       else
-        raise "Unknow error: #{res}"
+        ErrorInbox.configuration.logger.error("Missing credentials configuration")
+        {}
       end
     end
 
@@ -65,6 +75,19 @@ module ErrorInbox
       end
 
       JSON.dump(body)
+    end
+
+    def http_request(body)
+      uri = URI("http://oops.errorinbox.com/")
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.read_timeout = 5
+      http.open_timeout = 2
+
+      request = Net::HTTP::Post.new(uri.request_uri)
+      request["Content-Type"] = "application/json"
+      request.body = body
+      request.basic_auth(ErrorInbox.configuration.username, ErrorInbox.configuration.password)
+      http.request(request)
     end
   end
 end
