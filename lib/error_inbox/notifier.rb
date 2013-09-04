@@ -20,11 +20,16 @@ module ErrorInbox
     end
 
     def save(ex)
-      if ErrorInbox.configuration.username && ErrorInbox.configuration.password
+      if configuration.username && configuration.password
+        if ignored?(ex)
+          configuration.logger.info("#{ex.class.name}: ignored")
+          return {}
+        end
+
         response = begin
           http_request(prepare_body(ex))
         rescue *HTTP_ERRORS => ex
-          ErrorInbox.configuration.logger.error("#{ex.class.name}: #{ex.message}")
+          configuration.logger.error("#{ex.class.name}: #{ex.message}")
           nil
         end
 
@@ -32,16 +37,20 @@ module ErrorInbox
         when Net::HTTPCreated
           JSON.load(response.body)["id"]
         else
-          ErrorInbox.configuration.logger.error(response.class.name)
+          configuration.logger.error(response.class.name)
           {}
         end
       else
-        ErrorInbox.configuration.logger.error("Missing credentials configuration")
+        configuration.logger.error("Missing credentials configuration")
         {}
       end
     end
 
     protected
+
+    def ignored?(ex)
+      !!configuration.ignores.find { |blk| blk.call(ex, @options) }
+    end
 
     def prepare_body(ex)
       body = {
@@ -86,8 +95,12 @@ module ErrorInbox
       request = Net::HTTP::Post.new(uri.request_uri)
       request["Content-Type"] = "application/json"
       request.body = body
-      request.basic_auth(ErrorInbox.configuration.username, ErrorInbox.configuration.password)
+      request.basic_auth(configuration.username, configuration.password)
       http.request(request)
+    end
+
+    def configuration
+      ErrorInbox.configuration
     end
   end
 end

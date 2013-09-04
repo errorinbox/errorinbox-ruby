@@ -2,6 +2,8 @@ require "spec_helper"
 
 describe ErrorInbox::Notifier do
   let(:ex) { double("exception", :message => "some message", :backtrace => ["a.rb:10", "b.rb:11"]) }
+  let(:configuration) { double("configuration", :username => nil, :password => nil, :ignores => []) }
+  let(:logger) { double("logger") }
 
   around do |example|
     Timecop.travel(2013, 8, 21, 11, 57, 0) do
@@ -10,7 +12,8 @@ describe ErrorInbox::Notifier do
   end
 
   it "raises an error if credentials are missing" do
-    ErrorInbox.stub(:configuration => double("configuration", :username => nil, :password => nil, :logger => logger = double("logger")))
+    ErrorInbox.stub(:configuration => configuration)
+    configuration.stub(:logger => logger)
     logger.
       should_receive(:error).
       with("Missing credentials configuration")
@@ -20,7 +23,8 @@ describe ErrorInbox::Notifier do
   end
 
   it "raises an error if credentials are invalid" do
-    ErrorInbox.stub(:configuration => double("configuration", :username => "foo", :password => "bar", :logger => logger = double("logger")))
+    ErrorInbox.stub(:configuration => configuration)
+    configuration.stub(:username => "foo", :password => "bar", :logger => logger)
     logger.
       should_receive(:error).
       with("Net::HTTPForbidden")
@@ -31,22 +35,36 @@ describe ErrorInbox::Notifier do
     expect(notifier.save(ex)).to eq({})
   end
 
-  it "sends rack exception" do
-    ErrorInbox.stub(:configuration => double("configuration", :username => "foo", :password => "bar"))
+  context "with valid credentials" do
+    before do
+      configuration.stub(:username => "foo", :password => "bar")
 
-    stub_created_request_for_rack_exception
+      ErrorInbox.stub(:configuration => configuration)
+    end
 
-    notifier = described_class.new(:rack_env => { :foo => "bar" })
-    expect(notifier.save(ex)).to eq(1)
-  end
+    it "sends rack exception" do
+      stub_created_request_for_rack_exception
 
-  it "sends any exception" do
-    ErrorInbox.stub(:configuration => double("configuration", :username => "foo", :password => "bar"))
+      notifier = described_class.new(:rack_env => { :foo => "bar" })
+      expect(notifier.save(ex)).to eq(1)
+    end
 
-    stub_created_request_for_any_exception
+    it "sends any other exception" do
+      stub_created_request_for_any_exception
 
-    notifier = described_class.new(:sidekiq => { :queue => "default" })
-    expect(notifier.save(ex)).to eq(1)
+      notifier = described_class.new(:sidekiq => { :queue => "default" })
+      expect(notifier.save(ex)).to eq(1)
+    end
+
+    it "does not send ignored exceptions" do
+      configuration.stub(:ignores => [proc{ |ex, o| true }], :logger => logger)
+      logger.
+        should_receive(:info).
+        with("RSpec::Mocks::Mock: ignored")
+
+      notifier = described_class.new(:rack_env => { :foo => "bar" })
+      expect(notifier.save(ex)).to eq({})
+    end
   end
 
   def stub_created_request_for_rack_exception
